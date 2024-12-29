@@ -1,0 +1,6 @@
+cryptography
+pyserial
+dsmr-parser
+paho-mqtt
+pycryptodomex
+

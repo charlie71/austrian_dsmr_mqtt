@@ -5,6 +5,11 @@ import argparse
 import paho.mqtt.client as mqtt
 from Cryptodome.Cipher import AES
 from traceback import print_exc
+import sys
+
+# Standardausgaben explizit umleiten
+sys.stdout = sys.__stdout__
+sys.stderr = sys.__stderr__
 
 # DSMR parsing
 has_dsmr_parser = True
@@ -13,7 +18,8 @@ try:
     from dsmr_parser.parsers import TelegramParser
 
     from dsmr_parser import obis_references
-    import dsmr_parser.obis_name_mapping
+    # import dsmr_parser.obis_name_mapping
+
     print("Using DSMR parser")
 except ImportError:
     has_dsmr_parser = False
@@ -67,10 +73,35 @@ class SmartyProxy():
         self._gcm_tag = b""
         
         # Use MQTT (True | False)
-        self._useMQTT = False        
+        self._useMQTT = False
         self._client = None
 
     def main(self):
+        import os
+        print("MQTT_BROKER:", os.getenv("MQTT_BROKER"))
+        print("MQTT_USER:", os.getenv("MQTT_USER"))
+        print("MQTT_PASSWORD:", os.getenv("MQTT_PASSWORD"))
+        print("SERIAL_INPUT_PORT:", os.getenv("SERIAL_INPUT_PORT"))
+
+        # Lade Umgebungsvariablen
+        serial_input_port = os.getenv("SERIAL_INPUT_PORT", "/dev/ttyUSB0")
+        mqtt_broker = os.getenv("MQTT_BROKER")
+        mqtt_user = os.getenv("MQTT_USER")
+        mqtt_password = os.getenv("MQTT_PASSWORD")
+        guek = os.getenv("GUEK")
+        gak = os.getenv("GAK")
+
+        # Erstelle Argumentliste für den Parser
+        args = [
+            guek,
+            "-a", gak,
+            "--serial-input-port", serial_input_port,
+            "--mqtt-broker", mqtt_broker,
+            "--mqtt-user", mqtt_user,
+            "--mqtt-password", mqtt_password,
+            "--parse"
+        ]
+
         parser = argparse.ArgumentParser()
         parser.add_argument('key', help="Decryption key")
         parser.add_argument('-i', '--serial-input-port', required=False, default="/dev/ttyUSB0", help="Input port. Defaults to /dev/ttyUSB0.")
@@ -92,7 +123,7 @@ class SmartyProxy():
             if has_dsmr_parser:
                 try:
                     print("Connect MQTT...")
-                    self._client = mqtt.Client("SmartMeter")
+                    self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1,"SmartMeter")
                     self._client.username_pw_set(self._args.mqtt_user, self._args.mqtt_password)
                     self._client.connect(self._args.mqtt_broker, self._args.mqtt_port)
                     print("MQTT Connection successful")
@@ -115,8 +146,10 @@ class SmartyProxy():
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
             )
+            print("Serial connection established on", self._args.serial_input_port)
         except (serial.SerialException, OSError) as err:
-            print("ERROR")
+            print(f"ERROR: Could not open serial port {self._args.serial_input_port}")
+            print(err)
 
     # Start processing incoming data
     def process(self):
@@ -191,8 +224,8 @@ class SmartyProxy():
         elif self._state == self.STATE_HAS_SEPARATOR:
             if self._buffer_length > self._next_state:
                 self._frame_counter += hex_input
-                print("Framecounter")
-                print(self._frame_counter)
+                #print("Framecounter")
+                #print(self._frame_counter)
                 self._state = self.STATE_HAS_FRAME_COUNTER
                 self._next_state = self._next_state + self._data_length - 17
             else:
@@ -242,23 +275,24 @@ class SmartyProxy():
             )
             if has_dsmr_parser:
                 try:
-                    parser = TelegramParser(telegram_specifications.V5)
-
+                    mySpec = telegram_specifications.SAGEMCOM_T210_D_R
+                    mySpec['general_global_cipher'] = False
+                    parser = TelegramParser(mySpec)
                     telegram = parser.parse(decryption.decode())
-                    for key in telegram:
-                        myname = dsmr_parser.obis_name_mapping.EN[key]
+                    for obisName,dsmr_object in telegram:
+                        myname = obisName
                         try:
-                            myvalue = int(telegram[key].value)
+                            myvalue = int(dsmr_object.value)
                             myvalue_is_int = True
                         except:
-                            myvalue = telegram[key].value
+                            myvalue = dsmr_object.value
                             myvalue_is_int = False
-                        myunit = telegram[key].unit
+                        myunit = dsmr_object.unit
                         if self._args.parse:
                             print("%s: %s [%s]" % (myname, myvalue, myunit))
                         if self._useMQTT and myvalue_is_int:
                             self._client.publish("Smartmeter/{}".format(myname), myvalue)
-                        elif self._useMQTT and key == "P1_MESSAGE_TIMESTAMP":
+                        elif self._useMQTT and myname == "P1_MESSAGE_TIMESTAMP":
                             self._client.publish("Smartmeter/{}".format(myname), myvalue.isoformat().encode('utf-8'))
                         elif self._useMQTT and not myvalue_is_int:
                             self._client.publish("Smartmeter/{}".format(myname), str(myvalue).encode('utf-8'))
