@@ -20,6 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV PYTHONUNBUFFERED=1
 
 # Startbefehl definieren
-# CMD ["python3", "decrypt.py"]
-# CMD ["python3", "decrypt.py", "$GUEK", "-a", "$GAK", "--serial-input-port", "$SERIAL_INPUT_PORT", "--mqtt-broker", "$MQTT_BROKER","--mqtt-user","$MQTT_USER","--mqtt-password","$MQTT_PASSWORD"]
-CMD ["sh", "-c", "python3 decrypt.py $GUEK -a $GAK --serial-input-port $SERIAL_INPUT_PORT --mqtt-broker $MQTT_BROKER --mqtt-user $MQTT_USER --mqtt-password $MQTT_PASSWORD"]
+CMD ["sh", "-c", "python3 decrypt.py $GUEK -a $GAK --mqtt-broker $MQTT_BROKER --mqtt-user $MQTT_USER --mqtt-password $MQTT_PASSWORD"]
+

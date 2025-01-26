@@ -5,12 +5,18 @@ services:
     container_name: austrian_dsmr_mqtt
     network_mode: hassio
     devices:
-      - "/dev/ttyUSB0:/dev/ttyUSB0"
+      - "${SERIAL_INPUT_PORT}:/dev/ttyUSB0"
     environment:
       GUEK: "myGUEK"
       GAK: "myGAK"
-      MQTT_BROKER: "mybroker"
-      MQTT_USER: "myuser"
-      MQTT_PASSWORD: "mypassword"
-      SERIAL_INPUT_PORT: "/dev/ttyUSB0"
-    restart: always
+      MQTT_BROKER: "core-mosquitto"
+      MQTT_USER: "mqtt"
+      MQTT_PASSWORD: "myPassword"
+      SERIAL_INPUT_PORT: "/dev/serial/by-id/usb-XXXXX"
+    healthcheck:
+      test: ["CMD", "python3", "/app/check_mqtt_health.py"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: on-failure

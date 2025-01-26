@@ -6,6 +6,7 @@ import paho.mqtt.client as mqtt
 from Cryptodome.Cipher import AES
 from traceback import print_exc
 import sys
+import time
 
 # Standardausgaben explizit umleiten
 sys.stdout = sys.__stdout__
@@ -123,13 +124,13 @@ class SmartyProxy():
             if has_dsmr_parser:
                 try:
                     print("Connect MQTT...")
-                    self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1,"SmartMeter")
+                    self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,"SmartMeter", reconnect_on_failure=True)
                     self._client.username_pw_set(self._args.mqtt_user, self._args.mqtt_password)
                     self._client.connect(self._args.mqtt_broker, self._args.mqtt_port)
                     print("MQTT Connection successful")
                 except:
                     print("MQTT-connection went wrong!")
-                    sys.exit()
+                    sys.exit(1)
             else:
                 print("DSMR-parser not found. MQTT disabled!")
                 self._useMQTT = False
@@ -290,14 +291,36 @@ class SmartyProxy():
                         myunit = dsmr_object.unit
                         if self._args.parse:
                             print("%s: %s [%s]" % (myname, myvalue, myunit))
-                        if self._useMQTT and myvalue_is_int:
-                            self._client.publish("Smartmeter/{}".format(myname), myvalue)
-                        elif self._useMQTT and myname == "P1_MESSAGE_TIMESTAMP":
-                            self._client.publish("Smartmeter/{}".format(myname), myvalue.isoformat().encode('utf-8'))
-                        elif self._useMQTT and not myvalue_is_int:
-                            self._client.publish("Smartmeter/{}".format(myname), str(myvalue).encode('utf-8'))
-                except:
-                    print("ERROR: Cannot parse DSMR Telegram")
+                        if self._useMQTT:
+                            try:
+                                pub = 0
+                                if myvalue_is_int:
+                                    mid = self._client.publish("Smartmeter/{}".format(myname), myvalue,qos =0)
+                                    mid.wait_for_publish(2)
+                                    if mid.is_published():
+                                        pub += 1
+                                elif myname == "P1_MESSAGE_TIMESTAMP":
+                                    mid = self._client.publish("Smartmeter/{}".format(myname), myvalue.isoformat().encode('utf-8'),qos =0)
+                                    mid.wait_for_publish(2)
+                                    if mid.is_published():
+                                        pub += 1
+                                elif not myvalue_is_int:
+                                    mid = self._client.publish("Smartmeter/{}".format(myname), str(myvalue).encode('utf-8'),qos =0)
+                                    mid.wait_for_publish(2)
+                                    if mid.is_published():
+                                        pub += 1
+                                # Nach dem Senden eines Pakets
+                                if pub > 0:
+                                    with open("/tmp/mqtt_last_send", "w") as f:
+                                        f.write(str(time.time()))
+                                        f.close()
+                            except Exception as e:
+                                #try to reconnect
+                                print(f"MQTT publish failed: {e}")
+                                self._client.reconnect()
+                                print("Reconnection sucessful")
+                except Exception as e:
+                    print(f"ERROR: Cannot parse DSMR Telegram: {e}")
                     print(decryption)
                     print_exc()
             else:
