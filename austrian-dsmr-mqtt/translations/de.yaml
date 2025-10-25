@@ -1,0 +1,53 @@
+configuration:
+  GUEK:
+    name: Global Unicast Encryption Key (GUEK)
+    description: |
+      Persönlicher Entschlüsselungsschlüssel für den Smart Meter.
+      Diesen Key erhältst du von der Energie Steiermark.
+      Ohne gültigen GUEK können keine Telegramme entschlüsselt werden.
+  GAK:
+    name: Global Authentication Key (GAK / AAD)
+    description: |
+      Zweiter Schlüssel (Authentifizierung) für den Smart Meter.
+      Wird zusammen mit dem GUEK vom Netzbetreiber bereitgestellt.
+  MQTT_BROKER:
+    name: MQTT-Broker
+    description: |
+      Hostname oder IP-Adresse des MQTT-Brokers.
+      Standardmäßig kann hier „core-mosquitto“ (lokaler Broker) verwendet werden.
+  MQTT_USER:
+    name: MQTT-Benutzername
+    description: |
+      Benutzername für den Zugriff auf den MQTT-Broker.
+      Lasse dieses Feld leer, wenn dein Broker keine Authentifizierung verlangt.
+  MQTT_PASSWORD:
+    name: MQTT-Passwort
+    description: |
+      Passwort für den MQTT-Benutzer.
+      Achte auf korrekte Eingabe, sonst werden keine Daten gesendet.
+  SERIAL_INPUT_PORT:
+    name: Serielle Schnittstelle
+    description: |
+      Wähle hier den seriellen Anschluss deines Smart Meters aus.
+      Typischerweise „/dev/serial/by-id/...“ für FTDI- oder CP2102-Adapter.
+
+network:
+  title: Netzwerkzugriff
+  description: |
+    Dieses Add-on kommuniziert über den MQTT-Port (Standard 1883).
+    Stelle sicher, dass dein MQTT-Broker erreichbar ist.
+
+system:
+  title: Systemparameter
+  description: |
+    Das Add-on startet automatisch beim Booten und kann über den Supervisor verwaltet werden.
+
+errors:
+  missing_keys: "Bitte überprüfe die Eingabe von GUEK und GAK. Ohne gültige Schlüssel kann keine Entschlüsselung erfolgen."
+  mqtt_failed: "Fehler beim Senden der Daten an den MQTT-Broker. Bitte prüfe Broker-Adresse und Zugangsdaten."
+  serial_not_found: "Serielle Schnittstelle nicht gefunden. Bitte prüfe die Verkabelung oder wähle den korrekten Port aus."
+
+state:
+  starting: "Add-on wird gestartet..."
+  running: "Add-on läuft. Telegramme werden entschlüsselt und per MQTT publiziert."
+  stopped: "Add-on gestoppt."

@@ -1,0 +1,24 @@
+#!/command/with-contenv bashio
+set -euo pipefail
+
+GUEK=$(bashio::config 'GUEK')
+GAK=$(bashio::config 'GAK')
+MQTT_BROKER=$(bashio::config 'MQTT_BROKER')
+MQTT_USER=$(bashio::config 'MQTT_USER')
+MQTT_PASSWORD=$(bashio::config 'MQTT_PASSWORD')
+SERIAL_INPUT_PORT=$(bashio::config 'SERIAL_INPUT_PORT')
+
+export GUEK GAK MQTT_BROKER MQTT_USER MQTT_PASSWORD SERIAL_INPUT_PORT
+
+bashio::log.info "Starte Austrian DSMR MQTT"
+bashio::log.info "Serieller Port: ${SERIAL_INPUT_PORT}"
+bashio::log.info "MQTT Broker: ${MQTT_BROKER}"
+
+if [ ! -e "${SERIAL_INPUT_PORT}" ]; then
+  bashio::log.warning "Serieller Port ${SERIAL_INPUT_PORT} existiert (noch) nicht."
+fi
+
+exec python3 /app/decrypt.py "${GUEK}" -a "${GAK}" \
+  --mqtt-broker "${MQTT_BROKER}" \
+  --mqtt-user "${MQTT_USER}" \
+  --mqtt-password "${MQTT_PASSWORD}"

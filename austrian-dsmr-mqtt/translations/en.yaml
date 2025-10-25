@@ -1,0 +1,53 @@
+configuration:
+  GUEK:
+    name: Global Unicast Encryption Key (GUEK)
+    description: |
+      Personal decryption key for your smart meter.
+      You will receive this key from Energie Steiermark.
+      Without a valid GUEK, telegrams cannot be decrypted.
+  GAK:
+    name: Global Authentication Key (GAK / AAD)
+    description: |
+      Second key for authentication of DSMR messages.
+      Provided together with the GUEK by your energy provider.
+  MQTT_BROKER:
+    name: MQTT Broker
+    description: |
+      Hostname or IP address of your MQTT broker.
+      For the built-in broker in Home Assistant, use “core-mosquitto”.
+  MQTT_USER:
+    name: MQTT Username
+    description: |
+      Username for connecting to the MQTT broker.
+      Leave empty if your broker does not require authentication.
+  MQTT_PASSWORD:
+    name: MQTT Password
+    description: |
+      Password for the MQTT broker.
+      Make sure this value matches the credentials of your broker.
+  SERIAL_INPUT_PORT:
+    name: Serial Port
+    description: |
+      Select the serial port to which your DSMR Smart Meter is connected.
+      Usually “/dev/serial/by-id/...” for FTDI or CP2102 adapters.
+
+network:
+  title: Network Access
+  description: |
+    This add-on communicates with your MQTT broker via port 1883.
+    Make sure your broker is reachable from Home Assistant.
+
+system:
+  title: System
+  description: |
+    The add-on starts automatically on boot and can be managed from the Supervisor interface.
+
+errors:
+  missing_keys: "Please check your GUEK and GAK values. Without valid keys, no telegrams can be decrypted."
+  mqtt_failed: "Failed to publish data to the MQTT broker. Verify your broker address and credentials."
+  serial_not_found: "Serial port not found. Please check your wiring or select the correct port."
+
+state:
+  starting: "Add-on is starting..."
+  running: "Add-on is running. Telegrams are being decrypted and published via MQTT."
+  stopped: "Add-on stopped."

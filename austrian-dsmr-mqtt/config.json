@@ -1,0 +1,33 @@
+{
+  "name": "Austrian DSMR MQTT",
+  "slug": "austrian_dsmr_mqtt",
+  "version": "1.1.0",
+  "build_date": "2025-10-25T21:29:00Z",
+  "description": "Liest DSMR Smart Metern von Engerie Steiermark über seriell ein und publiziert via MQTT.",
+  "arch": ["aarch64", "armv7", "amd64", "i386"],
+  "startup": "services",
+  "boot": "auto",
+  "init": false,
+
+  "host_network": false,
+  "devices": ["/dev/serial/by-id/…", "/dev/ttyUSB0"]
+  "map": ["data:rw"],
+
+  "options": {
+    "GUEK": "myGUEK",
+    "GAK": "myGAK",
+    "MQTT_BROKER": "core-mosquitto",
+    "MQTT_USER": "mqtt",
+    "MQTT_PASSWORD": "myPassword",
+    "SERIAL_INPUT_PORT": null
+  },
+  "schema": {
+    "GUEK": "str",
+    "GAK": "str",
+    "MQTT_BROKER": "str",
+    "MQTT_USER": "str",
+    "MQTT_PASSWORD": "str",
+    "SERIAL_INPUT_PORT": "device(subsystem=tty)"
+  }
+}
+
