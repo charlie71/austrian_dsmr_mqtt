@@ -10,7 +10,7 @@
   "init": false,
 
   "host_network": false,
-  "devices": ["/dev/serial/by-id/…", "/dev/ttyUSB0"]
+  "devices": ["/dev/serial/by-id/…", "/dev/ttyUSB0"],
   "map": ["data:rw"],
 
   "options": {
@@ -30,4 +30,3 @@
     "SERIAL_INPUT_PORT": "device(subsystem=tty)"
   }
 }
-
