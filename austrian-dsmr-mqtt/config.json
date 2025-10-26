@@ -1,7 +1,7 @@
 {
   "name": "Austrian DSMR MQTT",
   "slug": "austrian_dsmr_mqtt",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "build_date": "2025-10-25T21:29:00Z",
   "description": "Liest DSMR Smart Metern von Engerie Steiermark über seriell ein und publiziert via MQTT.",
   "arch": ["aarch64", "armv7", "amd64", "i386"],
