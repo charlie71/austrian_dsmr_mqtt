@@ -34,10 +34,10 @@ RUN chmod +x /etc/services.d/austrian-dsmr-mqtt/run
 
 # Wichtig: KEIN CMD/ENTRYPOINT setzen (Base-Image startet /init selbst)
 
-RUN echo "=== LIST /etc/services.d ===" \
- && ls -l /etc/services.d \
- && echo "=== LIST austrian-dsmr-mqtt ===" \
- && ls -l /etc/services.d/austrian-dsmr-mqtt \
- && echo "=== HEAD run ===" \
- && head -n 3 /etc/services.d/austrian-dsmr-mqtt/run | sed -n '1,3p' | od -c
+# RUN echo "=== LIST /etc/services.d ===" \
+# && ls -l /etc/services.d \
+# && echo "=== LIST austrian-dsmr-mqtt ===" \
+# && ls -l /etc/services.d/austrian-dsmr-mqtt \
+# && echo "=== HEAD run ===" \
+# && head -n 3 /etc/services.d/austrian-dsmr-mqtt/run | sed -n '1,3p' | od -c
 

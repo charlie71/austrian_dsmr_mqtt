@@ -1,7 +1,0 @@
-#!/command/with-contenv bashio
-set -e
-bashio::log.info "s6 smoketest: s6 läuft (PID 1 check)."
-# Endlosschleife statt Exit, damit der Service 'lebt'
-while true; do
-  sleep 60
-done
