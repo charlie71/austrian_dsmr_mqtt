@@ -1,5 +1,5 @@
 {
-  "name": "Home Assistant Add-ons for Energie Steiermark 'DSMR-P1' meters (Sagemcom T210-D-R)",
+  "name": "Home Assistant Add-ons for Energie Steiermark DSMR-P1 meters (Sagemcom T210-D-R)",
   "url": "https://github.com/charlie71/austrian_dsmr_mqtt",
-  "maintainer": "charlie71"
+  "maintainer": "charlie71 <synkope_gipfel_0t@icloud.com>"
 }
