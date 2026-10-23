@@ -38,6 +38,14 @@ configuration:
   DISCOVERY_PREFIX:
     name: Discovery prefix
     description: 'MQTT discovery prefix, default "homeassistant".'
+  LEISTUNG_15MIN:
+    name: 15-minute power
+    description: |
+      Calculates the average import power per quarter hour based on the meter clock and a running
+      forecast for the end of the interval (topics Smartmeter/p15/intervall and Smartmeter/p15/laufend).
+  MAX_LEISTUNG_KW:
+    name: Plausibility limit (kW)
+    description: 'Higher 15-minute values are discarded as invalid.'
 
 network:
   title: Network Access

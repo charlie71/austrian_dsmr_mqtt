@@ -39,6 +39,15 @@ configuration:
   DISCOVERY_PREFIX:
     name: Discovery-Präfix
     description: 'Präfix für MQTT-Discovery, Standard „homeassistant“.'
+  LEISTUNG_15MIN:
+    name: 15-Minuten-Leistung
+    description: |
+      Berechnet den Mittelwert der Bezugsleistung je Viertelstunde nach Zählerzeit (Leistungspreis)
+      und eine laufende Prognose für das Intervallende. Sensoren „15min Leistung“, „15min Prognose“
+      und „15min Bezug laufend“; Topics Smartmeter/p15/intervall und Smartmeter/p15/laufend.
+  MAX_LEISTUNG_KW:
+    name: Plausibilitätsgrenze (kW)
+    description: 'Höhere 15-Minuten-Werte werden als ungültig verworfen (z. B. Anschlussleistung 17,3 kW).'
 
 network:
   title: Netzwerkzugriff

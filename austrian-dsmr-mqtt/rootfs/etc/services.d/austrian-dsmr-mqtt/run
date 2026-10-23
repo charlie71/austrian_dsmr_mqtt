@@ -9,6 +9,8 @@ MQTT_PASSWORD=$(bashio::config 'MQTT_PASSWORD')
 SERIAL_INPUT_PORT=$(bashio::config 'SERIAL_INPUT_PORT')
 DISCOVERY=$(bashio::config 'DISCOVERY' 'true')
 DISCOVERY_PREFIX=$(bashio::config 'DISCOVERY_PREFIX' 'homeassistant')
+LEISTUNG_15MIN=$(bashio::config 'LEISTUNG_15MIN' 'true')
+MAX_LEISTUNG_KW=$(bashio::config 'MAX_LEISTUNG_KW' '17.3')
 
 # Bis 1.1.x wurde der Port aus der Konfiguration nicht übergeben (immer /dev/ttyUSB0).
 # Ohne Auswahl bleibt es bei /dev/ttyUSB0.
@@ -16,7 +18,7 @@ if [ -z "${SERIAL_INPUT_PORT}" ] || [ "${SERIAL_INPUT_PORT}" = "null" ]; then
   SERIAL_INPUT_PORT="/dev/ttyUSB0"
 fi
 
-export GUEK GAK MQTT_BROKER MQTT_USER MQTT_PASSWORD SERIAL_INPUT_PORT DISCOVERY DISCOVERY_PREFIX
+export GUEK GAK MQTT_BROKER MQTT_USER MQTT_PASSWORD SERIAL_INPUT_PORT DISCOVERY DISCOVERY_PREFIX LEISTUNG_15MIN MAX_LEISTUNG_KW
 
 bashio::log.info "Starte Austrian DSMR MQTT"
 bashio::log.info "Serieller Port: ${SERIAL_INPUT_PORT}"

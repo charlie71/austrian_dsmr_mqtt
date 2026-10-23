@@ -10,7 +10,9 @@ import time
 import json
 import os
 
-APP_VERSION = "1.2.2"
+from p15 import Leistung15
+
+APP_VERSION = "1.3.0"
 
 # MQTT-Topics
 TOPIC_PREFIX = "Smartmeter"
@@ -55,6 +57,24 @@ DISCOVERY_SENSORS += [
     _s("CURRENT_REACTIVE_EXPORTED", "blindleistung_lieferung", "Blindleistung Lieferung", "var", "reactive_power", "measurement", "mdi:sine-wave"),
     _s("P1_MESSAGE_TIMESTAMP", "zeitstempel", "Zählerzeit", None, "timestamp", None, "mdi:clock-outline", "diagnostic"),
     _s("P1_MESSAGE_HEADER", "p1_version", "P1-Version", None, None, None, "mdi:information-outline", "diagnostic"),
+]
+
+# Ab 1.3.0: 15-Minuten-Leistung nach Zählerzeit (Option LEISTUNG_15MIN)
+P15_TOPIC_INTERVALL = "p15/intervall"     # retained, einmal je Viertelstunde
+P15_TOPIC_LAUFEND = "p15/laufend"         # bei jedem Telegramm
+P15_SENSORS = [
+    {"key": P15_TOPIC_INTERVALL, "unique_id": "austrian_dsmr_mqtt_p15_leistung",
+     "default_entity_id": "sensor.strom_15min_zaehler_leistung", "name": "15min Leistung",
+     "unit": "kW", "device_class": "power", "state_class": "measurement", "icon": "mdi:timer-sand",
+     "value_template": "{{ value_json.leistung_kw }}", "json_attributes": True},
+    {"key": P15_TOPIC_LAUFEND, "unique_id": "austrian_dsmr_mqtt_p15_prognose",
+     "default_entity_id": "sensor.stromzaehler_15min_prognose", "name": "15min Prognose",
+     "unit": "kW", "device_class": "power", "state_class": "measurement", "icon": "mdi:crystal-ball",
+     "value_template": "{{ value_json.prognose_kw }}", "json_attributes": True},
+    {"key": P15_TOPIC_LAUFEND, "unique_id": "austrian_dsmr_mqtt_p15_bezug_laufend",
+     "default_entity_id": "sensor.stromzaehler_15min_bezug_laufend", "name": "15min Bezug laufend",
+     "unit": "Wh", "device_class": "energy", "state_class": None, "icon": "mdi:timer-sand",
+     "value_template": "{{ value_json.energie_wh }}", "json_attributes": False},
 ]
 DEVICE = {
     "identifiers": ["austrian_dsmr_mqtt_smartmeter"],
@@ -144,6 +164,12 @@ class SmartyProxy():
         self._gcm_ok = None
         self._security_byte = b"30"
         self._had_telegram = False
+        self._p15_aktiv = os.getenv("LEISTUNG_15MIN", "true").lower() not in ("false", "0", "no")
+        try:
+            max_kw = float(os.getenv("MAX_LEISTUNG_KW", "17.3"))
+        except ValueError:
+            max_kw = 17.3
+        self._p15 = Leistung15(max_kw) if self._p15_aktiv else None
         self._discovery = os.getenv("DISCOVERY", "true").lower() not in ("false", "0", "no")
         self._discovery_prefix = os.getenv("DISCOVERY_PREFIX", "homeassistant") or "homeassistant"
 
@@ -228,7 +254,12 @@ class SmartyProxy():
         print("Status:", "online" if online else "offline")
 
     def publish_discovery(self):
-        for d in DISCOVERY_SENSORS:
+        if not self._p15_aktiv:
+            # Option ausgeschaltet: früher angemeldete 15-Minuten-Sensoren wieder entfernen
+            for d in P15_SENSORS:
+                topic = f"{self._discovery_prefix}/sensor/austrian_dsmr_mqtt/{d['unique_id']}/config"
+                self._client.publish(topic, "", qos=1, retain=True)
+        for d in DISCOVERY_SENSORS + (P15_SENSORS if self._p15_aktiv else []):
             cfg = {
                 "name": d["name"],
                 "unique_id": d["unique_id"],
@@ -245,14 +276,18 @@ class SmartyProxy():
                                  ("state_class", "state_class"), ("entity_category", "entity_category")):
                 if d.get(k_def):
                     cfg[k_cfg] = d[k_def]
+            if d.get("value_template"):
+                cfg["value_template"] = d["value_template"]
+            if d.get("json_attributes"):
+                cfg["json_attributes_topic"] = cfg["state_topic"]
             topic = f"{self._discovery_prefix}/sensor/austrian_dsmr_mqtt/{d['unique_id']}/config"
             self._client.publish(topic, json.dumps(cfg), qos=1, retain=True)
-        print(f"Discovery published for {len(DISCOVERY_SENSORS)} sensors")
+        print(f"Discovery published for {len(DISCOVERY_SENSORS) + (len(P15_SENSORS) if self._p15_aktiv else 0)} sensors")
 
-    def publish_value(self, name, payload):
+    def publish_value(self, name, payload, retain=False):
         if not self._mqtt_connected:
             return False
-        info = self._client.publish(f"{TOPIC_PREFIX}/{name}", payload, qos=0)
+        info = self._client.publish(f"{TOPIC_PREFIX}/{name}", payload, qos=1 if retain else 0, retain=retain)
         return info.rc == mqtt.MQTT_ERR_SUCCESS
 
     # Connect to the serial port when we run the script
@@ -435,7 +470,9 @@ class SmartyProxy():
             self._had_telegram = True
             self.set_online(True)
             pub = 0
+            werte = {}
             for obisName, dsmr_object in telegram:
+                werte[obisName] = dsmr_object.value
                 try:
                     myvalue = int(dsmr_object.value)
                     myvalue_is_int = True
@@ -452,6 +489,8 @@ class SmartyProxy():
                     else:
                         ok = self.publish_value(obisName, str(myvalue).encode('utf-8'))
                     pub += 1 if ok else 0
+            if self._p15 is not None:
+                pub += self.update_p15(werte)
             if pub > 0:
                 try:
                     with open("/tmp/mqtt_last_send", "w") as f:
@@ -461,6 +500,31 @@ class SmartyProxy():
 
         if self._args.serial_output_port:
             self.write_to_serial_port(decryption)
+
+    def update_p15(self, werte):
+        """15-Minuten-Leistung fortschreiben und veröffentlichen. Rückgabe: Anzahl gesendeter Meldungen."""
+        ts = werte.get("P1_MESSAGE_TIMESTAMP")
+        e = werte.get("ELECTRICITY_IMPORTED_TOTAL")
+        if ts is None or e is None:
+            return 0
+        try:
+            intervall, laufend = self._p15.update(ts.timestamp(), float(e),
+                                                  float(werte.get("CURRENT_ELECTRICITY_USAGE") or 0))
+        except Exception as ex:   # Rechenfehler dürfen das Einlesen nie stoppen
+            print(f"ERROR in 15-Minuten-Berechnung: {ex}")
+            return 0
+        n = 0
+        if intervall is not None:
+            if intervall["gueltig"]:
+                print(f"15min {intervall['start'][11:16]}–{intervall['ende'][11:16]} UTC: "
+                      f"{intervall['leistung_kw']} kW ({intervall['energie_wh']} Wh, {intervall['qualitaet']})")
+            else:
+                print(f"15min {intervall['start'][11:16]}–{intervall['ende'][11:16]} UTC: ungültig ({intervall['grund']})")
+            if self._useMQTT:
+                n += 1 if self.publish_value(P15_TOPIC_INTERVALL, json.dumps(intervall), retain=True) else 0
+        if self._useMQTT:
+            n += 1 if self.publish_value(P15_TOPIC_LAUFEND, json.dumps(laufend)) else 0
+        return n
 
     # Do the actual decryption (AES-GCM)
     def decrypt(self, key, additional_data, iv, payload, gcm_tag):

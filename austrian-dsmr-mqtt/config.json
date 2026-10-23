@@ -1,7 +1,7 @@
 {
   "name": "Austrian DSMR MQTT",
   "slug": "austrian_dsmr_mqtt",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "build_date": "2026-10-23T00:00:00Z",
   "description": "Liest DSMR Smart Metern von Engerie Steiermark über seriell ein und publiziert via MQTT.",
   "arch": [
@@ -24,7 +24,9 @@
     "MQTT_PASSWORD": "myPassword",
     "SERIAL_INPUT_PORT": null,
     "DISCOVERY": true,
-    "DISCOVERY_PREFIX": "homeassistant"
+    "DISCOVERY_PREFIX": "homeassistant",
+    "LEISTUNG_15MIN": true,
+    "MAX_LEISTUNG_KW": 17.3
   },
   "schema": {
     "GUEK": "str",
@@ -34,6 +36,8 @@
     "MQTT_PASSWORD": "str",
     "SERIAL_INPUT_PORT": "device(subsystem=tty)",
     "DISCOVERY": "bool",
-    "DISCOVERY_PREFIX": "str?"
+    "DISCOVERY_PREFIX": "str?",
+    "LEISTUNG_15MIN": "bool",
+    "MAX_LEISTUNG_KW": "float(0.1,100)"
   }
 }

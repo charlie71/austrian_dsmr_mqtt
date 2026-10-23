@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0 (2026-10-23)
+
+- **15-Minuten-Leistung nach Zählerzeit** (Option `LEISTUNG_15MIN`, Standard an): Viertelstundengrenzen
+  nach der Uhr des Zählers (UTC), Zählerstand an der Grenze zwischen den Telegrammen interpoliert.
+  - `Smartmeter/p15/intervall` (retained, je Viertelstunde): Beginn, Ende, Energie, mittlere Leistung,
+    Gültigkeit, Qualität (`exakt`/`interpoliert`/`naeherung`/`ungueltig`) und Grund.
+  - `Smartmeter/p15/laufend` (je Telegramm): Energie bisher, Mittelwert bisher, Prognose für das
+    Intervallende (Energie bisher + aktuelle Leistung × Restzeit).
+  - Sensoren „15min Leistung“ (`sensor.strom_15min_zaehler_leistung`), „15min Prognose“
+    (`sensor.stromzaehler_15min_prognose`), „15min Bezug laufend“ (`sensor.stromzaehler_15min_bezug_laufend`).
+  - Ungültig: App-Start im Intervall, Datenlücke > 120 s an einer Grenze, Zählerstand gefallen,
+    Wert über der Plausibilitätsgrenze `MAX_LEISTUNG_KW` (Standard 17,3 kW).
+- Ausschalten der Option entfernt die drei Sensoren wieder aus Home Assistant.
+
 ## 1.2.2 (2026-10-23)
 
 - **Alle Zählerwerte als Entitäten:** MQTT-Discovery für die 14 übrigen Werte des T210-D-R

@@ -130,6 +130,23 @@ Mit `DISCOVERY: true` (Standard) meldet das Add-on alle 18 Werte des Zählers al
   Registry-Eintrag – Verlauf, Langzeitstatistik und Energie-Dashboard laufen weiter.
 * Anpassen für andere Installationen: Liste `DISCOVERY_SENSORS` und `DEVICE` am Anfang von `decrypt.py`.
 
+### 15-Minuten-Leistung (ab 1.3.0)
+
+Für den Leistungspreis berechnet das Add-on mit `LEISTUNG_15MIN: true` den Mittelwert der Bezugsleistung
+je Viertelstunde – nach der **Uhr des Zählers**, nicht nach der Uhr von Home Assistant. Der Zählerstand an
+einer Viertelstundengrenze wird zwischen dem letzten Telegramm davor und dem ersten danach interpoliert
+(Telegramme kommen etwa alle 10 s; Auflösung 1 Wh ≙ 4 W im 15-Minuten-Mittel).
+
+| Sensor | Topic | Inhalt |
+| --- | --- | --- |
+| 15min Leistung | `Smartmeter/p15/intervall` (retained) | Mittelwert der letzten abgeschlossenen Viertelstunde in kW; Attribute `start`, `ende`, `energie_wh`, `gueltig`, `qualitaet`, `grund` |
+| 15min Prognose | `Smartmeter/p15/laufend` | erwarteter Wert am Intervallende in kW (Energie bisher + aktuelle Leistung × Restzeit) |
+| 15min Bezug laufend | `Smartmeter/p15/laufend` | Energie seit Beginn der Viertelstunde in Wh |
+
+Ungültige Intervalle (App-Start mitten im Intervall, Datenlücke > 120 s an einer Grenze, Zählerstand
+gefallen, Wert über `MAX_LEISTUNG_KW`) haben den Zustand „unbekannt“; der Grund steht im Attribut `grund`.
+Es handelt sich um eine lokale Berechnung, nicht um den Abrechnungswert des Netzbetreibers.
+
 **Umstieg von manuellen `mqtt.yaml`-Sensoren:** erst Add-on aktualisieren (die Discovery wird ignoriert, solange
 die YAML-Sensoren mit derselben `unique_id` existieren), dann die vier Sensoren aus `mqtt.yaml` entfernen und
 „MQTT-Entitäten“ neu laden. Einheiten und `state_class` nicht ändern, sonst entstehen neue Statistiken.
