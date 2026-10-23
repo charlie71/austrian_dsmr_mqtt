@@ -19,26 +19,27 @@ TOPIC_PREFIX = "Smartmeter"
 STATUS_TOPIC = TOPIC_PREFIX + "/status"          # online / offline (Last Will)
 
 # Home-Assistant-MQTT-Discovery.
-# WICHTIG: unique_id und default_entity_id entsprechen den bisherigen Sensoren aus mqtt.yaml,
-# damit HA nach der Umstellung denselben Registry-Eintrag weiterverwendet (Verlauf, Statistik,
-# InfluxDB, Energie-Dashboard bleiben erhalten). Einheiten/state_class daher nicht ändern!
+# WICHTIG: unique_id entspricht den bisherigen Sensoren aus mqtt.yaml, damit HA denselben
+# Registry-Eintrag weiterverwendet (Verlauf, Statistik, Energie-Dashboard bleiben erhalten).
+# unique_id, Einheiten und state_class daher nicht ändern! default_entity_id wirkt nur bei
+# einer Neuinstallation (bestehende Entitäten behalten ihre ID).
 DISCOVERY_SENSORS = [
     {"key": "ELECTRICITY_IMPORTED_TOTAL", "unique_id": "EG_xx_XX_electricity_imported_total",
-     "default_entity_id": "sensor.total_imported_electical_energy", "name": "Bezug gesamt",
+     "default_entity_id": "sensor.stromzaehler_energie_bezug", "name": "Bezug gesamt",
      "unit": "Wh", "device_class": "energy", "state_class": "total", "icon": "mdi:transmission-tower-export"},
     {"key": "ELECTRICITY_EXPORTED_TOTAL", "unique_id": "EG_xx_XX_electricity_exported_total",
-     "default_entity_id": "sensor.total_exported_electical_energy", "name": "Einspeisung gesamt",
+     "default_entity_id": "sensor.stromzaehler_energie_einspeisung", "name": "Einspeisung gesamt",
      "unit": "Wh", "device_class": "energy", "state_class": "total", "icon": "mdi:transmission-tower-import"},
     {"key": "CURRENT_ELECTRICITY_USAGE", "unique_id": "EG_xx_XX_current_electricity_usage",
-     "default_entity_id": "sensor.current_electricity_usage", "name": "Bezug aktuell",
+     "default_entity_id": "sensor.stromzaehler_leistung_bezug", "name": "Bezug aktuell",
      "unit": "W", "device_class": "power", "state_class": None, "icon": "mdi:gauge"},
     {"key": "CURRENT_ELECTRICITY_DELIVERY", "unique_id": "EG_xx_XX_current_electricity_delivery",
-     "default_entity_id": "sensor.current_electricity_delivery", "name": "Einspeisung aktuell",
+     "default_entity_id": "sensor.stromzaehler_leistung_einspeisung", "name": "Einspeisung aktuell",
      "unit": "W", "device_class": "power", "state_class": None, "icon": "mdi:gauge"},
 ]
 
-def _s(key, eid, name, unit, dc, sc, icon, cat=None):
-    return {"key": key, "unique_id": f"austrian_dsmr_mqtt_{eid}", "default_entity_id": f"sensor.stromzaehler_{eid}",
+def _s(key, eid, name, unit, dc, sc, icon, cat=None, uid=None):
+    return {"key": key, "unique_id": f"austrian_dsmr_mqtt_{uid or eid}", "default_entity_id": f"sensor.stromzaehler_{eid}",
             "name": name, "unit": unit, "device_class": dc, "state_class": sc, "icon": icon, "entity_category": cat}
 
 # Ab 1.2.2: alle übrigen Werte des T210-D-R (unique_id neu, Entity-IDs sensor.stromzaehler_*)
@@ -55,7 +56,7 @@ DISCOVERY_SENSORS += [
     _s("ELECTRICITY_REACTIVE_EXPORTED_TARIFF_2", "blindenergie_lieferung_tarif_2", "Blindenergie Lieferung Tarif 2", "varh", "reactive_energy", "total", "mdi:sine-wave"),
     _s("CURRENT_REACTIVE_IMPORTED", "blindleistung_bezug", "Blindleistung Bezug", "var", "reactive_power", "measurement", "mdi:sine-wave"),
     _s("CURRENT_REACTIVE_EXPORTED", "blindleistung_lieferung", "Blindleistung Lieferung", "var", "reactive_power", "measurement", "mdi:sine-wave"),
-    _s("P1_MESSAGE_TIMESTAMP", "zeitstempel", "Zählerzeit", None, "timestamp", None, "mdi:clock-outline", "diagnostic"),
+    _s("P1_MESSAGE_TIMESTAMP", "zaehlerzeit", "Zählerzeit", None, "timestamp", None, "mdi:clock-outline", "diagnostic", uid="zeitstempel"),
     _s("P1_MESSAGE_HEADER", "p1_version", "P1-Version", None, None, None, "mdi:information-outline", "diagnostic"),
 ]
 
@@ -64,7 +65,7 @@ P15_TOPIC_INTERVALL = "p15/intervall"     # retained, einmal je Viertelstunde
 P15_TOPIC_LAUFEND = "p15/laufend"         # bei jedem Telegramm
 P15_SENSORS = [
     {"key": P15_TOPIC_INTERVALL, "unique_id": "austrian_dsmr_mqtt_p15_leistung",
-     "default_entity_id": "sensor.strom_15min_zaehler_leistung", "name": "15min Leistung",
+     "default_entity_id": "sensor.stromzaehler_15min_leistung", "name": "15min Leistung",
      "unit": "kW", "device_class": "power", "state_class": "measurement", "icon": "mdi:timer-sand",
      "value_template": "{{ value_json.leistung_kw }}", "json_attributes": True},
     {"key": P15_TOPIC_LAUFEND, "unique_id": "austrian_dsmr_mqtt_p15_prognose",

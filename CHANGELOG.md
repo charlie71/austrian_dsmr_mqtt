@@ -8,11 +8,15 @@
     Gültigkeit, Qualität (`exakt`/`interpoliert`/`naeherung`/`ungueltig`) und Grund.
   - `Smartmeter/p15/laufend` (je Telegramm): Energie bisher, Mittelwert bisher, Prognose für das
     Intervallende (Energie bisher + aktuelle Leistung × Restzeit).
-  - Sensoren „15min Leistung“ (`sensor.strom_15min_zaehler_leistung`), „15min Prognose“
+  - Sensoren „15min Leistung“ (`sensor.stromzaehler_15min_leistung`), „15min Prognose“
     (`sensor.stromzaehler_15min_prognose`), „15min Bezug laufend“ (`sensor.stromzaehler_15min_bezug_laufend`).
   - Ungültig: App-Start im Intervall, Datenlücke > 120 s an einer Grenze, Zählerstand gefallen,
     Wert über der Plausibilitätsgrenze `MAX_LEISTUNG_KW` (Standard 17,3 kW).
 - Ausschalten der Option entfernt die drei Sensoren wieder aus Home Assistant.
+- **Einheitliche Entity-IDs** `sensor.stromzaehler_*` für Neuinstallationen (`default_entity_id`):
+  Bezug/Einspeisung gesamt → `…_energie_bezug`/`…_energie_einspeisung`, aktuell →
+  `…_leistung_bezug`/`…_leistung_einspeisung`, Zählerzeit → `…_zaehlerzeit`. Die `unique_id`s bleiben;
+  bestehende Entitäten werden in Home Assistant umbenannt (Verlauf bleibt erhalten).
 
 ## 1.2.2 (2026-10-23)
 
