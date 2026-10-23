@@ -106,8 +106,28 @@ Smartmeter/CURRENT_ELECTRICITY_USAGE   466
 Smartmeter/CURRENT_ELECTRICITY_DELIVERY 0
 ```
 
-> Hinweis: Es wird **keine** MQTT-Autodiscovery für HA-Sensoren angelegt (bewusst simpel gehalten).
-> Wer Autodiscovery möchte, kann per Node-RED oder MQTT-Automationen eigene Sensoren anlegen.
+### MQTT-Discovery (ab 1.2.0)
+
+Mit `DISCOVERY: true` (Standard) meldet das Add-on vier Sensoren als Gerät **„Vorratsraum Stromzähler“**
+(Sagemcom T210-D-R) in Home Assistant an:
+
+| Sensor | Topic | Einheit |
+| --- | --- | --- |
+| Bezug gesamt | `Smartmeter/ELECTRICITY_IMPORTED_TOTAL` | Wh (total) |
+| Einspeisung gesamt | `Smartmeter/ELECTRICITY_EXPORTED_TOTAL` | Wh (total) |
+| Bezug aktuell | `Smartmeter/CURRENT_ELECTRICITY_USAGE` | W |
+| Einspeisung aktuell | `Smartmeter/CURRENT_ELECTRICITY_DELIVERY` | W |
+
+* Verfügbarkeit über `Smartmeter/status` (`online`/`offline`, retained, MQTT Last Will):
+  fällt das Add-on oder der Zähler aus, werden die Sensoren in HA „nicht verfügbar“.
+* `unique_id` und `default_entity_id` entsprechen den früher manuell in `mqtt.yaml` angelegten Sensoren
+  (`EG_xx_XX_…`, `sensor.total_imported_electical_energy` …). So übernimmt HA beim Umstieg den bestehenden
+  Registry-Eintrag – Verlauf, Langzeitstatistik und Energie-Dashboard laufen weiter.
+* Anpassen für andere Installationen: Liste `DISCOVERY_SENSORS` und `DEVICE` am Anfang von `decrypt.py`.
+
+**Umstieg von manuellen `mqtt.yaml`-Sensoren:** erst Add-on aktualisieren (die Discovery wird ignoriert, solange
+die YAML-Sensoren mit derselben `unique_id` existieren), dann die vier Sensoren aus `mqtt.yaml` entfernen und
+„MQTT-Entitäten“ neu laden. Einheiten und `state_class` nicht ändern, sonst entstehen neue Statistiken.
 
 ---
 

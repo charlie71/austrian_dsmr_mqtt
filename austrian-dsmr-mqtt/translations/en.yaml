@@ -30,6 +30,14 @@ configuration:
     description: |
       Select the serial port to which your DSMR Smart Meter is connected.
       Usually “/dev/serial/by-id/...” for FTDI or CP2102 adapters.
+  DISCOVERY:
+    name: MQTT discovery
+    description: |
+      Announces the meter sensors (import/export total and current) via MQTT discovery as one device,
+      including availability (Smartmeter/status).
+  DISCOVERY_PREFIX:
+    name: Discovery prefix
+    description: 'MQTT discovery prefix, default "homeassistant".'
 
 network:
   title: Network Access

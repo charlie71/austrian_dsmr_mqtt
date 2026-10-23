@@ -30,6 +30,15 @@ configuration:
     description: |
       Wähle hier den seriellen Anschluss deines Smart Meters aus.
       Typischerweise „/dev/serial/by-id/...“ für FTDI- oder CP2102-Adapter.
+  DISCOVERY:
+    name: MQTT-Autodiscovery
+    description: |
+      Meldet die Zähler-Sensoren (Bezug/Einspeisung gesamt und aktuell) per MQTT-Discovery als Gerät
+      „Vorratsraum Stromzähler“ in Home Assistant an, inkl. Verfügbarkeit (Smartmeter/status).
+      Ausschalten entfernt die Sensoren nicht automatisch.
+  DISCOVERY_PREFIX:
+    name: Discovery-Präfix
+    description: 'Präfix für MQTT-Discovery, Standard „homeassistant“.'
 
 network:
   title: Netzwerkzugriff

@@ -8,7 +8,7 @@ RUN apk add --no-cache \
 
 # ---- Build-Dependencies (werden später entfernt) ----
 RUN apk add --no-cache --virtual .build-deps \
-      build-base python3-dev libffi-dev openssl-dev cargo make
+      build-base python3-dev libffi-dev openssl-dev make
 
 # ---- Virtuelle Umgebung (PEP 668-konform) ----
 RUN python3 -m venv /opt/venv

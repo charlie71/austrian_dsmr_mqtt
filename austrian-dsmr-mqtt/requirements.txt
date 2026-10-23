@@ -1,5 +1,5 @@
-cryptography
-pyserial
-dsmr-parser
-paho-mqtt
-pycryptodomex
+# Versionen fest, damit ein Neubau keine inkompatiblen Pakete holt (getestet 23.10.2026)
+pyserial==3.5
+dsmr-parser==1.11.2
+paho-mqtt>=2.1,<3
+pycryptodomex>=3.20,<4

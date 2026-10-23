@@ -7,6 +7,46 @@ from Cryptodome.Cipher import AES
 from traceback import print_exc
 import sys
 import time
+import json
+import os
+
+APP_VERSION = "1.2.0"
+
+# MQTT-Topics
+TOPIC_PREFIX = "Smartmeter"
+STATUS_TOPIC = TOPIC_PREFIX + "/status"          # online / offline (Last Will)
+
+# Home-Assistant-MQTT-Discovery.
+# WICHTIG: unique_id und default_entity_id entsprechen den bisherigen Sensoren aus mqtt.yaml,
+# damit HA nach der Umstellung denselben Registry-Eintrag weiterverwendet (Verlauf, Statistik,
+# InfluxDB, Energie-Dashboard bleiben erhalten). Einheiten/state_class daher nicht ändern!
+DISCOVERY_SENSORS = [
+    {"key": "ELECTRICITY_IMPORTED_TOTAL", "unique_id": "EG_xx_XX_electricity_imported_total",
+     "default_entity_id": "sensor.total_imported_electical_energy", "name": "Bezug gesamt",
+     "unit": "Wh", "device_class": "energy", "state_class": "total", "icon": "mdi:transmission-tower-export"},
+    {"key": "ELECTRICITY_EXPORTED_TOTAL", "unique_id": "EG_xx_XX_electricity_exported_total",
+     "default_entity_id": "sensor.total_exported_electical_energy", "name": "Einspeisung gesamt",
+     "unit": "Wh", "device_class": "energy", "state_class": "total", "icon": "mdi:transmission-tower-import"},
+    {"key": "CURRENT_ELECTRICITY_USAGE", "unique_id": "EG_xx_XX_current_electricity_usage",
+     "default_entity_id": "sensor.current_electricity_usage", "name": "Bezug aktuell",
+     "unit": "W", "device_class": "power", "state_class": None, "icon": "mdi:gauge"},
+    {"key": "CURRENT_ELECTRICITY_DELIVERY", "unique_id": "EG_xx_XX_current_electricity_delivery",
+     "default_entity_id": "sensor.current_electricity_delivery", "name": "Einspeisung aktuell",
+     "unit": "W", "device_class": "power", "state_class": None, "icon": "mdi:gauge"},
+]
+DEVICE = {
+    "identifiers": ["austrian_dsmr_mqtt_smartmeter"],
+    "name": "Vorratsraum Stromzähler",
+    "manufacturer": "Sagemcom",
+    "model": "T210-D-R",
+    "sw_version": APP_VERSION,
+    "suggested_area": "Vorratsraum",
+}
+ORIGIN = {"name": "Austrian DSMR MQTT", "sw_version": APP_VERSION,
+          "support_url": "https://github.com/charlie71/austrian_dsmr_mqtt"}
+
+# Ohne gültiges Telegramm so lange -> Status offline + serielle Schnittstelle neu öffnen
+NO_DATA_TIMEOUT_S = 60
 
 # Standardausgaben explizit umleiten
 sys.stdout = sys.__stdout__
@@ -76,33 +116,22 @@ class SmartyProxy():
         # Use MQTT (True | False)
         self._useMQTT = False
         self._client = None
+        self._mqtt_connected = False
+        self._online = None
+        self._last_telegram = time.time()
+        self._gcm_ok = None
+        self._had_telegram = False
+        self._discovery = os.getenv("DISCOVERY", "true").lower() not in ("false", "0", "no")
+        self._discovery_prefix = os.getenv("DISCOVERY_PREFIX", "homeassistant") or "homeassistant"
+
+        # DSMR-Parser nur einmal anlegen (Kopie der Spezifikation, das Original bleibt unverändert)
+        self._telegram_parser = None
+        if has_dsmr_parser:
+            spec = dict(telegram_specifications.SAGEMCOM_T210_D_R)
+            spec['general_global_cipher'] = False
+            self._telegram_parser = TelegramParser(spec)
 
     def main(self):
-        import os
-        print("MQTT_BROKER:", os.getenv("MQTT_BROKER"))
-        print("MQTT_USER:", os.getenv("MQTT_USER"))
-        print("MQTT_PASSWORD:", os.getenv("MQTT_PASSWORD"))
-        print("SERIAL_INPUT_PORT:", os.getenv("SERIAL_INPUT_PORT"))
-
-        # Lade Umgebungsvariablen
-        serial_input_port = os.getenv("SERIAL_INPUT_PORT", "/dev/ttyUSB0")
-        mqtt_broker = os.getenv("MQTT_BROKER")
-        mqtt_user = os.getenv("MQTT_USER")
-        mqtt_password = os.getenv("MQTT_PASSWORD")
-        guek = os.getenv("GUEK")
-        gak = os.getenv("GAK")
-
-        # Erstelle Argumentliste für den Parser
-        args = [
-            guek,
-            "-a", gak,
-            "--serial-input-port", serial_input_port,
-            "--mqtt-broker", mqtt_broker,
-            "--mqtt-user", mqtt_user,
-            "--mqtt-password", mqtt_password,
-            "--parse"
-        ]
-
         parser = argparse.ArgumentParser()
         parser.add_argument('key', help="Decryption key")
         parser.add_argument('-i', '--serial-input-port', required=False, default="/dev/ttyUSB0", help="Input port. Defaults to /dev/ttyUSB0.")
@@ -113,50 +142,141 @@ class SmartyProxy():
         parser.add_argument('-q', '--mqtt-port', required=False, default=1883, type=int, help="MQTT broker port")
         parser.add_argument('-u', '--mqtt-user', required=False, help="MQTT broker username")
         parser.add_argument('-v', '--mqtt-password', required=False, help="MQTT broker password")
-        
+
         self._args = parser.parse_args()
-        
+        # Zugangsdaten/Schlüssel werden bewusst NICHT ausgegeben
+        print(f"Austrian DSMR MQTT {APP_VERSION} – serieller Port: {self._args.serial_input_port}, "
+              f"Broker: {self._args.mqtt_broker}, Discovery: {self._discovery}")
+
         self.connect()
-        
+
         self._useMQTT = self._args.mqtt_broker is not None
         if self._useMQTT:
-            print("Using broker: {}".format(self._args.mqtt_broker))
-            if has_dsmr_parser:
-                try:
-                    print("Connect MQTT...")
-                    self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,"SmartMeter", reconnect_on_failure=True)
-                    self._client.username_pw_set(self._args.mqtt_user, self._args.mqtt_password)
-                    self._client.connect(self._args.mqtt_broker, self._args.mqtt_port)
-                    print("MQTT Connection successful")
-                except:
-                    print("MQTT-connection went wrong!")
-                    sys.exit(1)
-            else:
+            if not has_dsmr_parser:
                 print("DSMR-parser not found. MQTT disabled!")
                 self._useMQTT = False
-            
+            else:
+                self.mqtt_setup()
+
         while True:
             self.process()
 
+    # ---------------- MQTT ----------------
+    def mqtt_setup(self):
+        self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, "SmartMeter", reconnect_on_failure=True)
+        if self._args.mqtt_user:
+            self._client.username_pw_set(self._args.mqtt_user, self._args.mqtt_password)
+        # Last Will: fällt die App weg, meldet der Broker "offline" -> HA zeigt "nicht verfügbar"
+        self._client.will_set(STATUS_TOPIC, "offline", qos=1, retain=True)
+        self._client.reconnect_delay_set(min_delay=1, max_delay=60)
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        print("Connect MQTT...")
+        try:
+            self._client.connect(self._args.mqtt_broker, self._args.mqtt_port, keepalive=60)
+        except Exception as e:
+            # Broker (noch) nicht erreichbar: die Netzwerkschleife verbindet automatisch neu
+            print(f"MQTT connect failed ({e}) – retrying in background")
+            self._client.connect_async(self._args.mqtt_broker, self._args.mqtt_port, keepalive=60)
+        self._client.loop_start()
+
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        if reason_code.is_failure:
+            print(f"MQTT connection refused: {reason_code}")
+            return
+        print("MQTT Connection successful")
+        self._mqtt_connected = True
+        self._online = None
+        if self._discovery:
+            self.publish_discovery()
+        # Status wird beim nächsten gültigen Telegramm auf "online" gesetzt
+        if self._had_telegram and time.time() - self._last_telegram < NO_DATA_TIMEOUT_S:
+            self.set_online(True)
+
+    def on_disconnect(self, client, userdata, flags, reason_code, properties):
+        self._mqtt_connected = False
+        print(f"MQTT disconnected ({reason_code}) – reconnecting automatically")
+
+    def set_online(self, online):
+        if not self._useMQTT or not self._mqtt_connected or self._online == online:
+            return
+        self._client.publish(STATUS_TOPIC, "online" if online else "offline", qos=1, retain=True)
+        self._online = online
+        print("Status:", "online" if online else "offline")
+
+    def publish_discovery(self):
+        for d in DISCOVERY_SENSORS:
+            cfg = {
+                "name": d["name"],
+                "unique_id": d["unique_id"],
+                "default_entity_id": d["default_entity_id"],
+                "state_topic": f"{TOPIC_PREFIX}/{d['key']}",
+                "unit_of_measurement": d["unit"],
+                "device_class": d["device_class"],
+                "icon": d["icon"],
+                "availability_topic": STATUS_TOPIC,
+                "payload_available": "online",
+                "payload_not_available": "offline",
+                "device": DEVICE,
+                "origin": ORIGIN,
+            }
+            if d["state_class"]:
+                cfg["state_class"] = d["state_class"]
+            topic = f"{self._discovery_prefix}/sensor/austrian_dsmr_mqtt/{d['unique_id']}/config"
+            self._client.publish(topic, json.dumps(cfg), qos=1, retain=True)
+        print(f"Discovery published for {len(DISCOVERY_SENSORS)} sensors")
+
+    def publish_value(self, name, payload):
+        if not self._mqtt_connected:
+            return False
+        info = self._client.publish(f"{TOPIC_PREFIX}/{name}", payload, qos=0)
+        return info.rc == mqtt.MQTT_ERR_SUCCESS
+
     # Connect to the serial port when we run the script
     def connect(self):
+        """Serielle Schnittstelle öffnen; bei Fehler alle 5 s erneut versuchen."""
+        while True:
+            try:
+                self._connection = serial.Serial(
+                    port=self._args.serial_input_port,
+                    baudrate=115200,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                    timeout=5,
+                )
+                print("Serial connection established on", self._args.serial_input_port)
+                self._state = self.STATE_IGNORING
+                return
+            except (serial.SerialException, OSError) as err:
+                print(f"ERROR: Could not open serial port {self._args.serial_input_port}: {err} – retry in 5 s")
+                self._connection = None
+                time.sleep(5)
+
+    def reconnect_serial(self, reason):
+        print(f"Serial problem ({reason}) – reopening port")
+        self.set_online(False)
         try:
-            self._connection = serial.Serial(
-                port=self._args.serial_input_port,
-                baudrate=115200,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-            )
-            print("Serial connection established on", self._args.serial_input_port)
-        except (serial.SerialException, OSError) as err:
-            print(f"ERROR: Could not open serial port {self._args.serial_input_port}")
-            print(err)
+            if self._connection is not None:
+                self._connection.close()
+        except Exception:
+            pass
+        self._connection = None
+        time.sleep(5)
+        self.connect()
+        self._last_telegram = time.time()   # neue Frist ab Wiederverbindung
 
     # Start processing incoming data
     def process(self):
         try:
             raw_data = self._connection.read()
-        except serial.SerialException:
+        except (serial.SerialException, OSError, AttributeError) as err:
+            self.reconnect_serial(err)
+            return
+
+        if time.time() - self._last_telegram > NO_DATA_TIMEOUT_S:
+            self.reconnect_serial(f"no valid telegram for {NO_DATA_TIMEOUT_S} s")
+            return
+        if not raw_data:          # Lese-Timeout (5 s) ohne Daten
             return
 
         # Read and parse the stream from the serial port byte by byte.
@@ -267,70 +387,50 @@ class SmartyProxy():
         gcm_tag = binascii.unhexlify(self._gcm_tag)
 
         try:
-            decryption = self.decrypt(
-                key,
-                additional_data,
-                iv,
-                payload,
-                gcm_tag
-            )
-            if has_dsmr_parser:
+            decryption = self.decrypt(key, additional_data, iv, payload, gcm_tag)
+        except Exception as e:
+            print(f"ERROR on decryption: {e}")
+            return
+
+        if not has_dsmr_parser:
+            print(decryption)
+        else:
+            try:
+                telegram = self._telegram_parser.parse(decryption.decode())
+            except Exception as e:
+                print(f"ERROR: Cannot parse DSMR Telegram: {e}")
+                return
+
+            self._last_telegram = time.time()
+            self._had_telegram = True
+            self.set_online(True)
+            pub = 0
+            for obisName, dsmr_object in telegram:
                 try:
-                    mySpec = telegram_specifications.SAGEMCOM_T210_D_R
-                    mySpec['general_global_cipher'] = False
-                    parser = TelegramParser(mySpec)
-                    telegram = parser.parse(decryption.decode())
-                    for obisName,dsmr_object in telegram:
-                        myname = obisName
-                        try:
-                            myvalue = int(dsmr_object.value)
-                            myvalue_is_int = True
-                        except:
-                            myvalue = dsmr_object.value
-                            myvalue_is_int = False
-                        myunit = dsmr_object.unit
-                        if self._args.parse:
-                            print("%s: %s [%s]" % (myname, myvalue, myunit))
-                        if self._useMQTT:
-                            try:
-                                pub = 0
-                                if myvalue_is_int:
-                                    mid = self._client.publish("Smartmeter/{}".format(myname), myvalue,qos =0)
-                                    mid.wait_for_publish(2)
-                                    if mid.is_published():
-                                        pub += 1
-                                elif myname == "P1_MESSAGE_TIMESTAMP":
-                                    mid = self._client.publish("Smartmeter/{}".format(myname), myvalue.isoformat().encode('utf-8'),qos =0)
-                                    mid.wait_for_publish(2)
-                                    if mid.is_published():
-                                        pub += 1
-                                elif not myvalue_is_int:
-                                    mid = self._client.publish("Smartmeter/{}".format(myname), str(myvalue).encode('utf-8'),qos =0)
-                                    mid.wait_for_publish(2)
-                                    if mid.is_published():
-                                        pub += 1
-                                # Nach dem Senden eines Pakets
-                                if pub > 0:
-                                    with open("/tmp/mqtt_last_send", "w") as f:
-                                        f.write(str(time.time()))
-                                        f.close()
-                            except Exception as e:
-                                #try to reconnect
-                                print(f"MQTT publish failed: {e}")
-                                self._client.reconnect()
-                                print("Reconnection sucessful")
-                except Exception as e:
-                    print(f"ERROR: Cannot parse DSMR Telegram: {e}")
-                    print(decryption)
-                    print_exc()
-            else:
-                print(decryption)
+                    myvalue = int(dsmr_object.value)
+                    myvalue_is_int = True
+                except (TypeError, ValueError, ArithmeticError):
+                    myvalue = dsmr_object.value
+                    myvalue_is_int = False
+                if self._args.parse:
+                    print("%s: %s [%s]" % (obisName, myvalue, dsmr_object.unit))
+                if self._useMQTT:
+                    if myvalue_is_int:
+                        ok = self.publish_value(obisName, myvalue)
+                    elif obisName == "P1_MESSAGE_TIMESTAMP":
+                        ok = self.publish_value(obisName, myvalue.isoformat().encode('utf-8'))
+                    else:
+                        ok = self.publish_value(obisName, str(myvalue).encode('utf-8'))
+                    pub += 1 if ok else 0
+            if pub > 0:
+                try:
+                    with open("/tmp/mqtt_last_send", "w") as f:
+                        f.write(str(time.time()))
+                except OSError:
+                    pass
 
-
-            if self._args.serial_output_port:
-                self.write_to_serial_port(decryption)
-        except:
-            print("ERROR on decryption!")
+        if self._args.serial_output_port:
+            self.write_to_serial_port(decryption)
 
     # Do the actual decryption (AES-GCM)
     def decrypt(self, key, additional_data, iv, payload, gcm_tag):
@@ -345,7 +445,22 @@ class SmartyProxy():
     #        return decryptor.update(payload) + decryptor.finalize()
         cipher = AES.new(key, AES.MODE_GCM, iv, mac_len=12)
         cipher.update(additional_data)
-        return cipher.decrypt(payload)
+        try:
+            # Prüft zusätzlich den GCM-Tag (Echtheit/Unversehrtheit des Telegramms)
+            result = cipher.decrypt_and_verify(payload, gcm_tag)
+            if self._gcm_ok is not True:
+                print("GCM tag check OK")
+                self._gcm_ok = True
+            return result
+        except ValueError:
+            # Tag passt nicht: entschlüsseln wie bisher; die CRC-Prüfung des DSMR-Parsers
+            # verwirft beschädigte Telegramme trotzdem. Hinweis nur einmal ausgeben.
+            if self._gcm_ok is not False:
+                print("WARNING: GCM tag check failed – continuing without it (CRC check of the telegram stays active)")
+            self._gcm_ok = False
+            cipher = AES.new(key, AES.MODE_GCM, iv, mac_len=12)
+            cipher.update(additional_data)
+            return cipher.decrypt(payload)
 
     # Write the decrypted data to a serial port (e.g. one created with socat)
     def write_to_serial_port(self, decryption):
