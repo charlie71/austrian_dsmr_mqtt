@@ -6,6 +6,7 @@
   (`sensor.stromzaehler_*`): Bezug/Einspeisung je Tarif, Blindenergie gesamt und je Tarif,
   Blindleistung, Zählerzeit und P1-Version (die beiden letzten als Diagnose).
   Die vier bisherigen Sensoren bleiben unverändert.
+- **App-Icon und Logo** (`icon.png`, `logo.png`) für den App-Store in Home Assistant.
 
 ## 1.2.1 (2026-10-23)
 
