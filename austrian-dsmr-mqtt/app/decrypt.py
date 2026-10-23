@@ -10,7 +10,7 @@ import time
 import json
 import os
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 # MQTT-Topics
 TOPIC_PREFIX = "Smartmeter"
@@ -120,6 +120,7 @@ class SmartyProxy():
         self._online = None
         self._last_telegram = time.time()
         self._gcm_ok = None
+        self._security_byte = b"30"
         self._had_telegram = False
         self._discovery = os.getenv("DISCOVERY", "true").lower() not in ("false", "0", "no")
         self._discovery_prefix = os.getenv("DISCOVERY_PREFIX", "homeassistant") or "homeassistant"
@@ -298,6 +299,7 @@ class SmartyProxy():
                 self._frame_counter = b""
                 self._payload = b""
                 self._gcm_tag = b""
+                self._security_byte = b"30"
             else:
                 return
 
@@ -338,7 +340,9 @@ class SmartyProxy():
 
         # Length of remaining data has been read.
         elif self._state == self.STATE_HAS_DATA_LENGTH:
-            self._state = self.STATE_HAS_SEPARATOR  # Ignore separator byte
+            # Dieses Byte ist das Security-Control-Byte (0x30 = verschlüsselt + authentifiziert)
+            self._security_byte = hex_input
+            self._state = self.STATE_HAS_SEPARATOR
             self._next_state = self._next_state + 1 + 4  # separator byte + 4 bytes for framecounter
 
         # Additional byte after the remaining data length has been read.
@@ -382,6 +386,10 @@ class SmartyProxy():
     def analyze(self):
         key = binascii.unhexlify(self._args.key)
         additional_data = binascii.unhexlify(self._args.aad)
+        # Für die GCM-Prüfung gilt: AAD = Security-Control-Byte + GAK (16 Byte).
+        # Der Netzbetreiber liefert nur den GAK; ist bereits "30…" (17 Byte) eingetragen, bleibt es so.
+        if len(additional_data) == 16:
+            additional_data = binascii.unhexlify(self._security_byte) + additional_data
         iv = binascii.unhexlify(self._system_title + self._frame_counter)
         payload = binascii.unhexlify(self._payload)
         gcm_tag = binascii.unhexlify(self._gcm_tag)
@@ -453,10 +461,16 @@ class SmartyProxy():
                 self._gcm_ok = True
             return result
         except ValueError:
-            # Tag passt nicht: entschlüsseln wie bisher; die CRC-Prüfung des DSMR-Parsers
-            # verwirft beschädigte Telegramme trotzdem. Hinweis nur einmal ausgeben.
-            if self._gcm_ok is not False:
-                print("WARNING: GCM tag check failed – continuing without it (CRC check of the telegram stays active)")
+            if self._gcm_ok is True:
+                # Die Prüfung hat mit diesen Schlüsseln schon funktioniert -> Telegramm ist
+                # beschädigt oder nicht echt: verwerfen.
+                self._gcm_fail_count = getattr(self, "_gcm_fail_count", 0) + 1
+                print(f"WARNING: GCM tag check failed – telegram dropped ({self._gcm_fail_count} so far)")
+                raise ValueError("GCM tag mismatch")
+            # Noch nie erfolgreich geprüft (z. B. falscher GAK): entschlüsseln wie bisher;
+            # die CRC-Prüfung des DSMR-Parsers verwirft beschädigte Telegramme trotzdem.
+            if self._gcm_ok is None:
+                print("WARNING: GCM tag check failed – continuing without it (check GAK; CRC check stays active)")
             self._gcm_ok = False
             cipher = AES.new(key, AES.MODE_GCM, iv, mac_len=12)
             cipher.update(additional_data)

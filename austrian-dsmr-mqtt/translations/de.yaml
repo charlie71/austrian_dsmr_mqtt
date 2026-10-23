@@ -9,7 +9,7 @@ configuration:
     name: Global Authentication Key (GAK / AAD)
     description: |
       Zweiter Schlüssel (Authentifizierung) für den Smart Meter.
-      Wird zusammen mit dem GUEK vom Netzbetreiber bereitgestellt.
+      Wird zusammen mit dem GUEK vom Netzbetreiber bereitgestellt (32 Hex-Zeichen, ohne vorangestelltes "30").
   MQTT_BROKER:
     name: MQTT-Broker
     description: |

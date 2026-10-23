@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1 (2026-10-23)
+
+- **Integrität:** GCM-Tag-Prüfung funktioniert jetzt mit dem GAK, wie ihn der Netzbetreiber liefert
+  (16 Byte). Das Security-Control-Byte (`30`) aus dem Telegramm wird automatisch vorangestellt;
+  ein bereits mit `30` eingetragener Wert (17 Byte) funktioniert weiterhin.
+- Hat die Prüfung einmal funktioniert, werden Telegramme mit falschem Tag verworfen statt veröffentlicht.
+
 ## 1.2.0 (2026-10-23)
 
 - **Build:** Basisimage `ghcr.io/home-assistant/base:latest` als Standard im Dockerfile (Supervisor ab 2026.04 setzt `BUILD_FROM` nicht mehr); veraltete Architekturen `armv7`/`i386` entfernt.
