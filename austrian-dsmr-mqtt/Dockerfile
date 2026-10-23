@@ -3,43 +3,31 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/base:latest
 FROM ${BUILD_FROM}
 
-# ---- Runtime-Pakete (bleiben im Image) ----
-RUN apk add --no-cache \
-      python3 py3-pip socat \
-      openssl libffi
-
-# ---- Build-Dependencies (werden später entfernt) ----
-RUN apk add --no-cache --virtual .build-deps \
-      build-base python3-dev libffi-dev openssl-dev make
-
-# ---- Virtuelle Umgebung (PEP 668-konform) ----
-RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# ---- App-Dateien ----
+COPY requirements.txt /tmp/requirements.txt
+
+# Alles in EINER Schicht: Build-Werkzeuge werden nur gebraucht, falls pip fuer ein
+# Paket kein fertiges Wheel findet, und im selben Schritt wieder entfernt.
+# (Stehen sie in einer eigenen Schicht, bleiben sie trotz "apk del" im Image.)
+RUN apk add --no-cache python3 \
+ && apk add --no-cache --virtual .build-deps \
+      build-base python3-dev libffi-dev openssl-dev \
+ && python3 -m venv /opt/venv \
+ && pip install --prefer-binary -r /tmp/requirements.txt \
+ && apk del .build-deps \
+ && { pip uninstall -y pip setuptools wheel >/dev/null 2>&1 || true; } \
+ && find /opt/venv -depth \( -name '__pycache__' -o -name 'tests' -o -name 'test' \) \
+      -type d -exec rm -rf {} + \
+ && rm -rf /tmp/requirements.txt /root/.cache
+
 WORKDIR /app
-COPY requirements.txt /app/
 COPY app/ /app/
-
-# ---- Pip-Tools updaten & Requirements installieren ----
-RUN python -m pip install --upgrade pip setuptools wheel \
- && pip install -r /app/requirements.txt
-
-# ---- Build-Dependencies entfernen ----
-RUN apk del .build-deps
-
-# ---- s6-Services einspielen ----
 COPY rootfs/ /
 RUN chmod +x /etc/services.d/austrian-dsmr-mqtt/run
 
 # Wichtig: KEIN CMD/ENTRYPOINT setzen (Base-Image startet /init selbst)
-
-# RUN echo "=== LIST /etc/services.d ===" \
-# && ls -l /etc/services.d \
-# && echo "=== LIST austrian-dsmr-mqtt ===" \
-# && ls -l /etc/services.d/austrian-dsmr-mqtt \
-# && echo "=== HEAD run ===" \
-# && head -n 3 /etc/services.d/austrian-dsmr-mqtt/run | sed -n '1,3p' | od -c
-
