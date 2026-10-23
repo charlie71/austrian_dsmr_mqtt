@@ -2,6 +2,7 @@
 
 ## 1.2.0 (2026-10-23)
 
+- **Build:** Basisimage `ghcr.io/home-assistant/base:latest` als Standard im Dockerfile (Supervisor ab 2026.04 setzt `BUILD_FROM` nicht mehr); veraltete Architekturen `armv7`/`i386` entfernt.
 - **Sicherheit:** MQTT-Passwort wird nicht mehr ins Log geschrieben.
 - **MQTT-Discovery:** Gerät „Vorratsraum Stromzähler“ mit vier Sensoren; gleiche `unique_id` wie die bisherigen
   `mqtt.yaml`-Sensoren, damit Verlauf und Statistik erhalten bleiben (Option `DISCOVERY`).

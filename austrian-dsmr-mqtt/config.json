@@ -6,9 +6,7 @@
   "description": "Liest DSMR Smart Metern von Engerie Steiermark über seriell ein und publiziert via MQTT.",
   "arch": [
     "aarch64",
-    "armv7",
-    "amd64",
-    "i386"
+    "amd64"
   ],
   "startup": "services",
   "boot": "auto",

@@ -1,4 +1,6 @@
-ARG BUILD_FROM
+# Seit Supervisor 2026.04 wird BUILD_FROM nicht mehr gesetzt.
+# Multi-Arch-Basisimage als Standard; aeltere Supervisor koennen es weiterhin ueberschreiben.
+ARG BUILD_FROM=ghcr.io/home-assistant/base:latest
 FROM ${BUILD_FROM}
 
 # ---- Runtime-Pakete (bleiben im Image) ----
