@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2 (2026-10-23)
+
+- **Alle Zählerwerte als Entitäten:** MQTT-Discovery für die 14 übrigen Werte des T210-D-R
+  (`sensor.stromzaehler_*`): Bezug/Einspeisung je Tarif, Blindenergie gesamt und je Tarif,
+  Blindleistung, Zählerzeit und P1-Version (die beiden letzten als Diagnose).
+  Die vier bisherigen Sensoren bleiben unverändert.
+
 ## 1.2.1 (2026-10-23)
 
 - **Integrität:** GCM-Tag-Prüfung funktioniert jetzt mit dem GAK, wie ihn der Netzbetreiber liefert

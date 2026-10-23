@@ -10,7 +10,7 @@ import time
 import json
 import os
 
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 
 # MQTT-Topics
 TOPIC_PREFIX = "Smartmeter"
@@ -33,6 +33,28 @@ DISCOVERY_SENSORS = [
     {"key": "CURRENT_ELECTRICITY_DELIVERY", "unique_id": "EG_xx_XX_current_electricity_delivery",
      "default_entity_id": "sensor.current_electricity_delivery", "name": "Einspeisung aktuell",
      "unit": "W", "device_class": "power", "state_class": None, "icon": "mdi:gauge"},
+]
+
+def _s(key, eid, name, unit, dc, sc, icon, cat=None):
+    return {"key": key, "unique_id": f"austrian_dsmr_mqtt_{eid}", "default_entity_id": f"sensor.stromzaehler_{eid}",
+            "name": name, "unit": unit, "device_class": dc, "state_class": sc, "icon": icon, "entity_category": cat}
+
+# Ab 1.2.2: alle übrigen Werte des T210-D-R (unique_id neu, Entity-IDs sensor.stromzaehler_*)
+DISCOVERY_SENSORS += [
+    _s("ELECTRICITY_USED_TARIFF_1", "energie_bezug_tarif_1", "Bezug Tarif 1", "Wh", "energy", "total", "mdi:transmission-tower-export"),
+    _s("ELECTRICITY_USED_TARIFF_2", "energie_bezug_tarif_2", "Bezug Tarif 2", "Wh", "energy", "total", "mdi:transmission-tower-export"),
+    _s("ELECTRICITY_DELIVERED_TARIFF_1", "energie_einspeisung_tarif_1", "Einspeisung Tarif 1", "Wh", "energy", "total", "mdi:transmission-tower-import"),
+    _s("ELECTRICITY_DELIVERED_TARIFF_2", "energie_einspeisung_tarif_2", "Einspeisung Tarif 2", "Wh", "energy", "total", "mdi:transmission-tower-import"),
+    _s("ELECTRICITY_REACTIVE_IMPORTED_TOTAL", "blindenergie_bezug", "Blindenergie Bezug", "varh", "reactive_energy", "total", "mdi:sine-wave"),
+    _s("ELECTRICITY_REACTIVE_IMPORTED_TARIFF_1", "blindenergie_bezug_tarif_1", "Blindenergie Bezug Tarif 1", "varh", "reactive_energy", "total", "mdi:sine-wave"),
+    _s("ELECTRICITY_REACTIVE_IMPORTED_TARIFF_2", "blindenergie_bezug_tarif_2", "Blindenergie Bezug Tarif 2", "varh", "reactive_energy", "total", "mdi:sine-wave"),
+    _s("ELECTRICITY_REACTIVE_EXPORTED_TOTAL", "blindenergie_lieferung", "Blindenergie Lieferung", "varh", "reactive_energy", "total", "mdi:sine-wave"),
+    _s("ELECTRICITY_REACTIVE_EXPORTED_TARIFF_1", "blindenergie_lieferung_tarif_1", "Blindenergie Lieferung Tarif 1", "varh", "reactive_energy", "total", "mdi:sine-wave"),
+    _s("ELECTRICITY_REACTIVE_EXPORTED_TARIFF_2", "blindenergie_lieferung_tarif_2", "Blindenergie Lieferung Tarif 2", "varh", "reactive_energy", "total", "mdi:sine-wave"),
+    _s("CURRENT_REACTIVE_IMPORTED", "blindleistung_bezug", "Blindleistung Bezug", "var", "reactive_power", "measurement", "mdi:sine-wave"),
+    _s("CURRENT_REACTIVE_EXPORTED", "blindleistung_lieferung", "Blindleistung Lieferung", "var", "reactive_power", "measurement", "mdi:sine-wave"),
+    _s("P1_MESSAGE_TIMESTAMP", "zeitstempel", "Zählerzeit", None, "timestamp", None, "mdi:clock-outline", "diagnostic"),
+    _s("P1_MESSAGE_HEADER", "p1_version", "P1-Version", None, None, None, "mdi:information-outline", "diagnostic"),
 ]
 DEVICE = {
     "identifiers": ["austrian_dsmr_mqtt_smartmeter"],
@@ -212,8 +234,6 @@ class SmartyProxy():
                 "unique_id": d["unique_id"],
                 "default_entity_id": d["default_entity_id"],
                 "state_topic": f"{TOPIC_PREFIX}/{d['key']}",
-                "unit_of_measurement": d["unit"],
-                "device_class": d["device_class"],
                 "icon": d["icon"],
                 "availability_topic": STATUS_TOPIC,
                 "payload_available": "online",
@@ -221,8 +241,10 @@ class SmartyProxy():
                 "device": DEVICE,
                 "origin": ORIGIN,
             }
-            if d["state_class"]:
-                cfg["state_class"] = d["state_class"]
+            for k_cfg, k_def in (("unit_of_measurement", "unit"), ("device_class", "device_class"),
+                                 ("state_class", "state_class"), ("entity_category", "entity_category")):
+                if d.get(k_def):
+                    cfg[k_cfg] = d[k_def]
             topic = f"{self._discovery_prefix}/sensor/austrian_dsmr_mqtt/{d['unique_id']}/config"
             self._client.publish(topic, json.dumps(cfg), qos=1, retain=True)
         print(f"Discovery published for {len(DISCOVERY_SENSORS)} sensors")

@@ -108,7 +108,7 @@ Smartmeter/CURRENT_ELECTRICITY_DELIVERY 0
 
 ### MQTT-Discovery (ab 1.2.0)
 
-Mit `DISCOVERY: true` (Standard) meldet das Add-on vier Sensoren als Gerät **„Vorratsraum Stromzähler“**
+Mit `DISCOVERY: true` (Standard) meldet das Add-on alle 18 Werte des Zählers als Gerät **„Vorratsraum Stromzähler“**
 (Sagemcom T210-D-R) in Home Assistant an:
 
 | Sensor | Topic | Einheit |
@@ -117,6 +117,11 @@ Mit `DISCOVERY: true` (Standard) meldet das Add-on vier Sensoren als Gerät **�
 | Einspeisung gesamt | `Smartmeter/ELECTRICITY_EXPORTED_TOTAL` | Wh (total) |
 | Bezug aktuell | `Smartmeter/CURRENT_ELECTRICITY_USAGE` | W |
 | Einspeisung aktuell | `Smartmeter/CURRENT_ELECTRICITY_DELIVERY` | W |
+| Bezug / Einspeisung Tarif 1, 2 (ab 1.2.2) | `Smartmeter/ELECTRICITY_USED_TARIFF_1` … `ELECTRICITY_DELIVERED_TARIFF_2` | Wh (total) |
+| Blindenergie Bezug / Lieferung, gesamt und je Tarif (ab 1.2.2) | `Smartmeter/ELECTRICITY_REACTIVE_IMPORTED_TOTAL` … | varh (total) |
+| Blindleistung Bezug / Lieferung (ab 1.2.2) | `Smartmeter/CURRENT_REACTIVE_IMPORTED`, `…_EXPORTED` | var |
+| Zählerzeit (Diagnose, ab 1.2.2) | `Smartmeter/P1_MESSAGE_TIMESTAMP` | Zeitstempel (UTC) |
+| P1-Version (Diagnose, ab 1.2.2) | `Smartmeter/P1_MESSAGE_HEADER` | – |
 
 * Verfügbarkeit über `Smartmeter/status` (`online`/`offline`, retained, MQTT Last Will):
   fällt das Add-on oder der Zähler aus, werden die Sensoren in HA „nicht verfügbar“.
